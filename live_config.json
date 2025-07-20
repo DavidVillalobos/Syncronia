@@ -1,0 +1,14 @@
+[
+  {
+    "ip": "192.168.31.233",
+    "freq": 90,
+    "bw": 30,
+    "color": [
+      255,
+      15,
+      20
+    ],
+    "brightness": 0,
+    "instrumento": "Kick (Bombo)"
+  }
+]
