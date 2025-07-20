@@ -20,8 +20,9 @@ class GoveeLan:
         except Exception as e:
             print(f"[Error] al enviar comando a {ip}: {e}")
 
-    def set_color(self, r, g, b):
-        for ip in self.ips:
+    def set_color(self, r, g, b, ip=None):
+        target_ips = [ip] if ip else self.ips
+        for addr in target_ips:
             command = {
                 "msg": {
                     "cmd": "colorwc",
@@ -31,7 +32,7 @@ class GoveeLan:
                     }
                 }
             }
-            self._send_command(ip, command)
+            self._send_command(addr, command)
 
     def set_brightness(self, value):
         if not (0 <= value <= 100):

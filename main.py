@@ -5,13 +5,13 @@ from beat_sync import run_manual_beat
 from multi_sync import seleccionar_config_por_luz, run_multi_sync
 from govee_lan import GoveeLan
 
-CONFIG_PATH = "lights.json"
+CONFIG_PATH = "config.json"
 CONFIG_CACHE = "last_config.json"
 
 
 def cargar_ips_json():
     if not os.path.exists(CONFIG_PATH):
-        print("Archivo lights.json no encontrado.")
+        print("Archivo config.json no encontrado.")
         return []
     with open(CONFIG_PATH) as f:
         return json.load(f).get("ips", [])
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     if opcion == "1":
         ips = cargar_ips_json()
         if not ips:
-            exit("No se encontraron IPs en lights.json")
+            exit("No se encontraron IPs en config.json")
         lights = GoveeLan(ips)
 
         brightness = int(input("Brillo deseado(1–100): ").strip() or 100)
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     elif opcion == "2":
         ips = cargar_ips_json()
         if not ips:
-            exit("No se encontraron IPs en lights.json")
+            exit("No se encontraron IPs en config.json")
         grupos = seleccionar_config_por_luz(ips)
         guardar_config(grupos)
         run_multi_sync(grupos)
