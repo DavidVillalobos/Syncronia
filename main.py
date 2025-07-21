@@ -1,33 +1,33 @@
 import sys
 import json
-import threading
 import time
 import socket
 import numpy as np
 import pyaudio
-from collections import deque
+from aubio import tempo
 
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QLabel, QComboBox,
-    QSlider, QPushButton, QColorDialog
+    QApplication, QWidget, QLabel, QComboBox, QPushButton,
+    QVBoxLayout, QGridLayout, QHBoxLayout, QSpinBox, QDoubleSpinBox
 )
 from PyQt6.QtCore import Qt, QTimer
 
-import pyqtgraph as pg
-
+# === Presets e Interfaces ===
 PRESETS = {
-    "Kick (Bombo)": {"freq": 90, "bw": 30},
-    "Snare (Caja)": {"freq": 180, "bw": 50},
-    "Voz baja (Masculina)": {"freq": 200, "bw": 100},
-    "Voz media (Conversación)": {"freq": 400, "bw": 200},
-    "Voz alta (Femenina)": {"freq": 700, "bw": 250},
-    "Melodía baja": {"freq": 500, "bw": 300},
-    "Melodía media": {"freq": 1200, "bw": 500},
-    "Melodía aguda": {"freq": 3000, "bw": 800},
-    "Hi-hat / Agudos": {"freq": 7500, "bw": 1500}
+    "Kick": {"freq": 90, "bw": 30},
+    "Snare": {"freq": 180, "bw": 50},
+    "Voz": {"freq": 400, "bw": 200},
+    "Teclado": {"freq": 2000, "bw": 1000},
+    "Hi-Hat": {"freq": 7500, "bw": 1500},
 }
 
-config_path = "live_config.json"
+COLOR_OPTIONS = {
+    "Rojo": (255, 0, 0),
+    "Verde": (0, 255, 0),
+    "Azul": (0, 0, 255),
+}
+
+# === Envío de comandos ===
 
 
 def send_color(ip, r, g, b):
@@ -40,204 +40,185 @@ def send_color(ip, r, g, b):
             }
         }
     }
-    message = json.dumps(command).encode("utf-8")
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.sendto(message, (ip, 4003))
+    sock.sendto(json.dumps(command).encode(), (ip, 4003))
     sock.close()
 
-
-def calcular_energia(data, rate, freq, bw):
-    data = data - np.mean(data)
-    fft = np.fft.fft(data)
-    freqs = np.fft.fftfreq(len(fft), 1.0 / rate)
-    magnitude = np.abs(fft)
-    indices = np.where((freqs >= freq - bw) & (freqs <= freq + bw))[0]
-    return np.mean(magnitude[indices]) if len(indices) > 0 else 0
-
-
-def procesar_luz(ip, stream, control, stop_event):
-    RATE = 44100
-    CHUNK = 1024
-    FLASH_DURATION = 0.05
-    last_beat = 0
-    apagado_programado = 0
-
-    while not stop_event.is_set():
-        try:
-            data = np.frombuffer(stream.read(
-                CHUNK, exception_on_overflow=False), dtype=np.int16)
-        except Exception:
-            continue
-
-        t_now = time.time()
-
-        freq = control.freq_slider.value()
-        bw = control.bw_slider.value()
-        color = control.color
-        energia = calcular_energia(data, RATE, freq, bw)
-
-        control.energy_plot.append(energia)
-        control.plot_curve.setData(list(control.energy_plot))
-
-        if energia > 50000 and (t_now - last_beat) >= 0.25:
-            brightness = control.brightness_slider.value()
-            rgb = [int(c * (brightness / 100)) for c in color]
-            send_color(ip, *rgb)
-            last_beat = t_now
-            apagado_programado = t_now + FLASH_DURATION
-
-        if apagado_programado and time.time() >= apagado_programado:
-            send_color(ip, 0, 0, 0)
-            apagado_programado = 0
-
-    send_color(ip, 0, 0, 0)
+# === Controlador por luz ===
 
 
 class LuzController(QWidget):
-    def __init__(self, ip):
+    def __init__(self, light, device_index):
         super().__init__()
-        self.ip = ip
-        self.color = [255, 255, 255]
-        self.energy_plot = deque(maxlen=100)
+        self.ip = light["ip"]
+        self.label = f"{light['name']} - {light['model']} - {light['ip']}"
+        self.device_index = device_index
+        self.color = COLOR_OPTIONS["Rojo"]
+        self.last_beat_time = 0
+        self.stream = None
+        self.tempo_obj = None
 
         layout = QVBoxLayout()
-        layout.addWidget(QLabel(f"Luz: {ip}"))
+        layout.addWidget(QLabel(self.label))
 
-        self.preset_selector = QComboBox()
-        self.preset_selector.addItems(list(PRESETS.keys()))
-        self.preset_selector.currentTextChanged.connect(self.update_sliders)
-        layout.addWidget(self.preset_selector)
+        self.preset = QComboBox()
+        self.preset.addItems(PRESETS.keys())
+        self.preset.currentTextChanged.connect(self.apply_preset)
+        layout.addWidget(self.preset)
 
-        self.freq_label = QLabel("Frecuencia (Hz): 0")
-        self.freq_slider = QSlider(Qt.Orientation.Horizontal)
-        self.freq_slider.setRange(20, 10000)
-        self.freq_slider.valueChanged.connect(
-            lambda v: self.freq_label.setText(f"Frecuencia (Hz): {v}"))
-        layout.addWidget(self.freq_label)
-        layout.addWidget(self.freq_slider)
+        self.freq_input = self._spinbox("Freq", layout, 20, 10000, 400)
+        self.bw_input = self._spinbox("BW", layout, 10, 2000, 100)
+        self.thr_input = self._spinbox(
+            "Threshold", layout, 50000, 1000000, 300000)
+        self.cooldown_input = self._spinbox(
+            "Cooldown (ms)", layout, 10, 5000, 250)
+        self.flash_input = self._spinbox("Flash ms", layout, 10, 500, 50)
+        self.brightness_input = self._spinbox("Brillo", layout, 1, 100, 100)
 
-        self.bw_label = QLabel("Ancho de banda (Hz): 0")
-        self.bw_slider = QSlider(Qt.Orientation.Horizontal)
-        self.bw_slider.setRange(10, 3000)
-        self.bw_slider.valueChanged.connect(
-            lambda v: self.bw_label.setText(f"Ancho de banda (Hz): {v}"))
-        layout.addWidget(self.bw_label)
-        layout.addWidget(self.bw_slider)
+        self.color_box = QComboBox()
+        self.color_box.addItems(COLOR_OPTIONS.keys())
+        self.color_box.currentTextChanged.connect(self.update_color)
+        layout.addWidget(self.color_box)
 
-        self.color_btn = QPushButton("Color")
-        self.color_btn.clicked.connect(self.select_color)
-        layout.addWidget(self.color_btn)
-
-        self.brightness_label = QLabel("Brillo: 100")
-        self.brightness_slider = QSlider(Qt.Orientation.Horizontal)
-        self.brightness_slider.setRange(0, 100)
-        self.brightness_slider.setValue(100)
-        self.brightness_slider.valueChanged.connect(
-            lambda v: self.brightness_label.setText(f"Brillo: {v}"))
-        layout.addWidget(self.brightness_label)
-        layout.addWidget(self.brightness_slider)
-
-        self.plot_widget = pg.PlotWidget()
-        self.plot_curve = self.plot_widget.plot(pen="y")
-        layout.addWidget(self.plot_widget)
+        btns = QHBoxLayout()
+        self.btn_start = QPushButton("Encender")
+        self.btn_stop = QPushButton("Apagar")
+        self.btn_apply = QPushButton("Aplicar cambios")
+        btns.addWidget(self.btn_start)
+        btns.addWidget(self.btn_stop)
+        btns.addWidget(self.btn_apply)
+        layout.addLayout(btns)
 
         self.setLayout(layout)
-        self.update_sliders(self.preset_selector.currentText())
 
-    def update_sliders(self, preset):
-        valores = PRESETS.get(preset)
-        if valores:
-            self.freq_slider.setValue(valores["freq"])
-            self.bw_slider.setValue(valores["bw"])
+        self.btn_start.clicked.connect(self.setup_audio)
+        self.btn_stop.clicked.connect(self.stop_audio)
+        self.btn_apply.clicked.connect(self.apply_changes)
 
-    def select_color(self):
-        color = QColorDialog.getColor()
-        if color.isValid():
-            self.color = [color.red(), color.green(), color.blue()]
+        self.btn_stop.setEnabled(False)
+        self.apply_preset(self.preset.currentText())
+
+    def _spinbox(self, name, layout, min_, max_, value):
+        hbox = QHBoxLayout()
+        label = QLabel(f"{name}:")
+        spin = QSpinBox() if isinstance(value, int) else QDoubleSpinBox()
+        spin.setRange(min_, max_)
+        spin.setValue(value)
+        hbox.addWidget(label)
+        hbox.addWidget(spin)
+        layout.addLayout(hbox)
+        return spin
+
+    def update_color(self, name):
+        self.color = COLOR_OPTIONS[name]
+
+    def apply_preset(self, name):
+        if name in PRESETS:
+            preset = PRESETS[name]
+            self.freq_input.setValue(preset['freq'])
+            self.bw_input.setValue(preset['bw'])
+
+    def get_params(self):
+        return {
+            "freq": self.freq_input.value(),
+            "bw": self.bw_input.value(),
+            "threshold": self.thr_input.value(),
+            "cooldown": self.cooldown_input.value() / 1000,
+            "flash_duration": self.flash_input.value() / 1000,
+            "brightness": self.brightness_input.value(),
+            "color": self.color,
+            "device_index": self.device_index
+        }
+
+    def setup_audio(self):
+        if self.stream:
+            return
+        RATE = 44100
+        self.HOP_SIZE = 512
+        self.RATE = RATE
+        self.p = pyaudio.PyAudio()
+        self.stream = self.p.open(format=pyaudio.paFloat32,
+                                  channels=1,
+                                  rate=RATE,
+                                  input=True,
+                                  input_device_index=self.device_index,
+                                  frames_per_buffer=self.HOP_SIZE)
+        self.tempo_obj = tempo("default", 1024, self.HOP_SIZE, RATE)
+        self.btn_start.setEnabled(False)
+        self.btn_stop.setEnabled(True)
+
+    def stop_audio(self):
+        if self.stream:
+            self.stream.stop_stream()
+            self.stream.close()
+            self.stream = None
+        if hasattr(self, 'p'):
+            self.p.terminate()
+        send_color(self.ip, 0, 0, 0)
+        self.btn_start.setEnabled(True)
+        self.btn_stop.setEnabled(False)
+
+    def apply_changes(self):
+        # Reiniciar audio para aplicar valores nuevos
+        was_running = self.stream is not None
+        self.stop_audio()
+        if was_running:
+            self.setup_audio()
+
+    def analyze(self):
+        if not self.stream:
+            return
+        buffer = self.stream.read(self.HOP_SIZE, exception_on_overflow=False)
+        samples = np.frombuffer(buffer, dtype=np.float32)
+        if self.tempo_obj(samples):
+            now = time.time()
+            if now - self.last_beat_time >= self.cooldown_input.value() / 1000:
+                brightness = self.brightness_input.value() / 100
+                rgb = [int(c * brightness) for c in self.color]
+                send_color(self.ip, *rgb)
+                time.sleep(self.flash_input.value() / 1000)
+                send_color(self.ip, 0, 0, 0)
+                self.last_beat_time = now
+
+# === App principal ===
 
 
 class GoveeApp(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Controlador de luces Govee")
-        self.resize(800, 600)
+        self.setWindowTitle("Controlador de Luces Govee")
+        self.resize(1000, 600)
 
-        self.layout = QVBoxLayout()
         with open("config.json") as f:
             config = json.load(f)
-        self.ips = config.get("ips", [])
+
+        self.lights = config.get("lights", [])
         self.device_index = config.get("device_index", 0)
 
         self.controllers = []
-        for ip in self.ips:
-            ctrl = LuzController(ip)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_all)
+
+        self.grid = QGridLayout()
+        for i, light in enumerate(self.lights):
+            ctrl = LuzController(light, self.device_index)
             self.controllers.append(ctrl)
-            self.layout.addWidget(ctrl)
+            row, col = divmod(i, 2)
+            self.grid.addWidget(ctrl, row, col)
 
-        self.toggle_btn = QPushButton("Iniciar")
-        self.toggle_btn.clicked.connect(self.toggle_run)
-        self.layout.addWidget(self.toggle_btn)
+        layout = QVBoxLayout()
+        layout.addLayout(self.grid)
+        self.setLayout(layout)
 
-        self.setLayout(self.layout)
-        self.running = False
-        self.threads = []
-        self.stop_events = []
-        self.stream = None
-        self.audio = None
+        self.timer.start(30)
 
-        self.update_timer = QTimer()
-        self.update_timer.timeout.connect(self.update_graphs)
-        self.update_timer.start(100)
-
-    def update_graphs(self):
+    def update_all(self):
         for ctrl in self.controllers:
-            ctrl.plot_curve.setData(list(ctrl.energy_plot))
-
-    def toggle_run(self):
-        if self.running:
-            for e in self.stop_events:
-                e.set()
-            for grupo in self.controllers:
-                send_color(grupo.ip, 0, 0, 0)
-            if self.stream:
-                self.stream.stop_stream()
-                self.stream.close()
-            if self.audio:
-                self.audio.terminate()
-            self.running = False
-            self.threads.clear()
-            self.stop_events.clear()
-            self.toggle_btn.setText("Iniciar")
-        else:
-            self.running = True
-            self.toggle_btn.setText("Detener")
-            self.start_sync()
-
-    def start_sync(self):
-        RATE = 44100
-        CHUNK = 1024
-        self.audio = pyaudio.PyAudio()
-        self.stream = self.audio.open(format=pyaudio.paInt16,
-                                      channels=1,
-                                      rate=RATE,
-                                      input=True,
-                                      input_device_index=self.device_index,
-                                      frames_per_buffer=CHUNK)
-
-        self.stop_events = []
-        self.threads = []
-        for ctrl in self.controllers:
-            stop_event = threading.Event()
-            hilo = threading.Thread(target=procesar_luz, args=(
-                ctrl.ip, self.stream, ctrl, stop_event))
-            hilo.daemon = True
-            hilo.start()
-            self.threads.append(hilo)
-            self.stop_events.append(stop_event)
+            ctrl.analyze()
 
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    ventana = GoveeApp()
-    ventana.show()
+    gui = GoveeApp()
+    gui.show()
     sys.exit(app.exec())
