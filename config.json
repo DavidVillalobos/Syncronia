@@ -2,14 +2,39 @@
   "lights": [
     {
       "ip": "192.168.31.233",
-      "name": "Luz Goove #1",
-      "model": "H61A0"
+      "name": "Luz Govee #1",
+      "model": "H61A0",
+      "mac_address": "D4:AD:FC:59:CC:1E"
     },
     {
       "ip": "192.168.31.218",
-      "name": "Luz Goove #2",
-      "model": "H61A0"
+      "name": "Luz Govee #2",
+      "model": "H61A0",
+      "mac_address": "D4:AD:FC:58:C6:72"
     }
   ],
-  "device_index": 3
+  "device_index": 5,
+  "colors_beat": [
+    [0, 0, 255],
+    [0, 255, 0],
+    [255, 0, 0]
+  ],
+  "colors_fade": [
+    [0, 0, 255],
+    [0, 255, 0],
+    [255, 0, 0]
+  ],
+
+  "brightness": 1,
+
+  "fft_band": {
+    "low_freq": 40,
+    "high_freq": 120
+  },
+
+  "amplitude_threshold": 20,
+  "min_peak_distance": 0.5,
+  "idle_timeout": 1,
+  "fade_steps": 20,
+  "fade_delay": 0.1
 }
