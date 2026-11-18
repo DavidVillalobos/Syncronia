@@ -274,6 +274,30 @@ python -m light_engine action "Rope Cuarto David" color 255 255 255
 
 ---
 
+# Escenas DIY
+
+Syncronia permite consultar y ejecutar escenas DIY de un dispositivo que exponga la capacidad `diyScene` en la API de Govee.
+
+Consultar las escenas DIY disponibles:
+
+```bash
+python -m light_engine scenes "Rope Cuarto David" --instance diyScene
+```
+
+Ejecutar una escena por nombre:
+
+```bash
+python -m light_engine scenes "Rope Cuarto David" \
+  --instance diyScene \
+  --invoke-by-name diyScene "Nombre de la escena"
+```
+
+La búsqueda por nombre no distingue mayúsculas y minúsculas. El dispositivo debe estar conectado a la cuenta Govee configurada en `.env` y ser compatible con escenas DIY.
+
+**Alcance actual:** consulta y ejecución sobre un dispositivo por comando. La ejecución coordinada en dos luces del mismo modelo todavía está pendiente; no se debe asumir sincronización simultánea entre dispositivos.
+
+---
+
 # Referencia rápida
 
 | Categoría                | Comando                        |
@@ -392,8 +416,8 @@ Funciones previstas:
 
 * Control RGB por segmentos
 * Control de brillo por segmentos
-* Listado y ejecución de escenas
-* Escenas DIY
+* Listado y ejecución de escenas DIY en un dispositivo
+* Ejecución coordinada de escenas DIY en dos luces del mismo modelo
 * Motor de efectos
 * Sincronización por BPM
 * Integración Rekordbox / Ableton Link
