@@ -81,7 +81,8 @@ class LightController:
 
         # Find capability parameters if available
         cap_obj = next(
-            (c for c in device.capabilities if c.type == cap and c.instance == instance),
+            (c for c in device.capabilities if c.type ==
+             cap and c.instance == instance),
             None
         )
         params = cap_obj.parameters if cap_obj else {}
@@ -96,7 +97,8 @@ class LightController:
                 return list(range(int(seg["start"]), int(seg["end"]) + 1))
             if "index" in seg:
                 return [int(seg["index"])]
-            raise ValueError("segment descriptor must include segment/list or startIndex/endIndex or index")
+            raise ValueError(
+                "segment descriptor must include segment/list or startIndex/endIndex or index")
 
         # Normalize input and group by color (rgb)
         groups: dict[int, list[int]] = {}
@@ -106,7 +108,8 @@ class LightController:
                 raise ValueError("each segment must be a dict")
 
             # Accept both colorRgb and rgb keys from callers
-            color = seg.get("colorRgb") if seg.get("colorRgb") is not None else seg.get("rgb")
+            color = seg.get("colorRgb") if seg.get(
+                "colorRgb") is not None else seg.get("rgb")
             if color is None:
                 raise ValueError("segment descriptor missing colorRgb or rgb")
             try:
@@ -126,9 +129,11 @@ class LightController:
                         min_idx = er.get("min")
                         max_idx = er.get("max")
                         if min_idx is not None and any(i < min_idx for i in idxs):
-                            raise ValueError(f"segment index below min {min_idx}")
+                            raise ValueError(
+                                f"segment index below min {min_idx}")
                         if max_idx is not None and any(i > max_idx for i in idxs):
-                            raise ValueError(f"segment index above max {max_idx}")
+                            raise ValueError(
+                                f"segment index above max {max_idx}")
             except Exception:
                 # If validation fails, surface the error
                 raise
@@ -140,7 +145,8 @@ class LightController:
         for color, idx_list in groups.items():
             unique_idxs = sorted(set(idx_list))
             payload = {"segment": unique_idxs, "rgb": int(color)}
-            last_result = self.client.control(device.sku, device.device_id, cap, instance, payload)
+            last_result = self.client.control(
+                device.sku, device.device_id, cap, instance, payload)
 
         if last_result is None:
             raise ValueError("no segments to set")
@@ -164,7 +170,8 @@ class LightController:
         self._require(device, cap, instance)
 
         cap_obj = next(
-            (c for c in device.capabilities if c.type == cap and c.instance == instance),
+            (c for c in device.capabilities if c.type ==
+             cap and c.instance == instance),
             None
         )
         params = cap_obj.parameters if cap_obj else {}
@@ -178,7 +185,8 @@ class LightController:
                 return list(range(int(seg["start"]), int(seg["end"]) + 1))
             if "index" in seg:
                 return [int(seg["index"])]
-            raise ValueError("segment descriptor must include segment/list or startIndex/endIndex or index")
+            raise ValueError(
+                "segment descriptor must include segment/list or startIndex/endIndex or index")
 
         groups: dict[int, list[int]] = {}
 
@@ -202,9 +210,11 @@ class LightController:
                         min_idx = er.get("min")
                         max_idx = er.get("max")
                         if min_idx is not None and any(i < min_idx for i in idxs):
-                            raise ValueError(f"segment index below min {min_idx}")
+                            raise ValueError(
+                                f"segment index below min {min_idx}")
                         if max_idx is not None and any(i > max_idx for i in idxs):
-                            raise ValueError(f"segment index above max {max_idx}")
+                            raise ValueError(
+                                f"segment index above max {max_idx}")
             except Exception:
                 raise
 
@@ -214,7 +224,8 @@ class LightController:
         for bright, idx_list in groups.items():
             unique_idxs = sorted(set(idx_list))
             payload = {"segment": unique_idxs, "brightness": int(bright)}
-            last_result = self.client.control(device.sku, device.device_id, cap, instance, payload)
+            last_result = self.client.control(
+                device.sku, device.device_id, cap, instance, payload)
 
         if last_result is None:
             raise ValueError("no segments to set")
@@ -248,8 +259,10 @@ class LightController:
 
         # Colors
         for c in scene.get("colors", []):
-            idxs = parse_index_spec(c.get("index") or c.get("segment") or c.get("startIndex"))
-            rgb = c.get("rgb") if c.get("rgb") is not None else c.get("colorRgb")
+            idxs = parse_index_spec(c.get("index") or c.get(
+                "segment") or c.get("startIndex"))
+            rgb = c.get("rgb") if c.get(
+                "rgb") is not None else c.get("colorRgb")
             if isinstance(rgb, list):
                 r, g, b = rgb
                 rgb_val = (int(r) << 16) | (int(g) << 8) | int(b)
@@ -263,7 +276,8 @@ class LightController:
 
         # Brightness
         for b in scene.get("brightness", []):
-            idxs = parse_index_spec(b.get("index") or b.get("segment") or b.get("startIndex"))
+            idxs = parse_index_spec(b.get("index") or b.get(
+                "segment") or b.get("startIndex"))
             bright = int(b.get("brightness"))
             plan.append({
                 "cap": "devices.capabilities.segment_color_setting",
@@ -302,7 +316,8 @@ class LightController:
                 # the scene dict under a 'diyScene' key. If the API rejects this, we'll
                 # catch and fall back to explicit segment calls.
                 payload = {"diyScene": scene}
-                res = self.client.control(device.sku, device.device_id, "devices.capabilities.dynamic_scene", "diyScene", payload)
+                res = self.client.control(
+                    device.sku, device.device_id, "devices.capabilities.dynamic_scene", "diyScene", payload)
                 results.append(res)
                 return results
             except Exception:
@@ -311,7 +326,8 @@ class LightController:
 
         plan = self.plan_scene_calls(device_query, scene)
         for item in plan:
-            res = self.client.control(device.sku, device.device_id, item["cap"], item["instance"], item["payload"])
+            res = self.client.control(
+                device.sku, device.device_id, item["cap"], item["instance"], item["payload"])
             results.append(res)
         return results
 
@@ -330,7 +346,8 @@ class LightController:
                     "parameters": c.parameters,
                 }
                 # If parameters contain options, surface them nicely
-                opts = c.parameters.get("options") if isinstance(c.parameters, dict) else None
+                opts = c.parameters.get("options") if isinstance(
+                    c.parameters, dict) else None
                 if opts:
                     item["options"] = opts
                 scenes.append(item)
@@ -344,7 +361,8 @@ class LightController:
         same object to activate_dynamic_scene.
         """
         device = self.registry.resolve(device_query)
-        payload, latency, status = self.client.get_scenes(device.sku, device.device_id)
+        payload, latency, status = self.client.get_scenes(
+            device.sku, device.device_id)
         caps = payload.get("capabilities") if isinstance(payload, dict) else []
         scenes = []
         for c in caps:
@@ -353,10 +371,34 @@ class LightController:
                     "instance": c.get("instance"),
                     "parameters": c.get("parameters"),
                 }
-                opts = c.get("parameters", {}).get("options") if isinstance(c.get("parameters"), dict) else None
+                opts = c.get("parameters", {}).get("options") if isinstance(
+                    c.get("parameters"), dict) else None
                 if opts:
                     item["options"] = opts
                 scenes.append(item)
+        return scenes
+
+    def get_diy_scenes(self, device_query: str) -> list[dict]:
+        """Return user-created DIY scene options from POST /device/diy-scenes."""
+        device = self.registry.resolve(device_query)
+        payload, latency, status = self.client.get_diy_scenes(
+            device.sku, device.device_id
+        )
+        caps = payload.get("capabilities") if isinstance(payload, dict) else []
+        scenes = []
+        for cap in caps or []:
+            if cap.get("instance") != "diyScene":
+                continue
+            parameters = cap.get("parameters") or {}
+            item = {
+                "instance": cap.get("instance"),
+                "parameters": parameters,
+            }
+            options = parameters.get("options") if isinstance(
+                parameters, dict) else None
+            if options:
+                item["options"] = options
+            scenes.append(item)
         return scenes
 
     def activate_dynamic_scene(self, device_query: str, instance: str, value):

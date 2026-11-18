@@ -130,3 +130,17 @@ class GoveeClient:
             "POST", "/device/scenes", json_body=body
         )
         return data.get("payload") or {}, latency, status
+
+    def get_diy_scenes(self, sku: str, device_id: str) -> tuple[dict[str, Any], float, int]:
+        """Query user-created DIY scenes (POST /device/diy-scenes)."""
+        body = {
+            "requestId": str(uuid.uuid4()),
+            "payload": {
+                "sku": sku,
+                "device": device_id,
+            },
+        }
+        data, latency, status = self._request(
+            "POST", "/device/diy-scenes", json_body=body
+        )
+        return data.get("payload") or {}, latency, status

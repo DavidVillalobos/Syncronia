@@ -31,7 +31,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_inspect = sub.add_parser("inspect")
     p_inspect.add_argument("device")
-    p_inspect.add_argument("--raw", action="store_true", help="Also fetch raw state payload")
+    p_inspect.add_argument("--raw", action="store_true",
+                           help="Also fetch raw state payload")
 
     p_health = sub.add_parser("health")
     p_health.add_argument("device")
@@ -55,20 +56,33 @@ def build_parser() -> argparse.ArgumentParser:
 
     # scene commands: dry-run and run
     p_scene = sub.add_parser("scene", help="Apply or inspect scenes")
-    p_scene.add_argument("mode", choices=["dry-run", "run"], help="dry-run to preview payloads, run to execute")
+    p_scene.add_argument("mode", choices=[
+                         "dry-run", "run"], help="dry-run to preview payloads, run to execute")
     p_scene.add_argument("device")
     p_scene.add_argument("scene_file", help="Path to JSON scene file")
-    p_scene.add_argument("--use-diy", action="store_true", help="Attempt to use device's diyScene capability when running")
+    p_scene.add_argument("--use-diy", action="store_true",
+                         help="Attempt to use device's diyScene capability when running")
 
-    p_scenes = sub.add_parser("scenes", help="List or invoke device dynamic scenes (snapshots, diy)")
-    p_scenes.add_argument("device", nargs="?", help="Device or entity to inspect (optional with --all)")
-    p_scenes.add_argument("--all", action="store_true", help="List scenes for all known entities")
-    p_scenes.add_argument("--invoke", nargs=2, metavar=("INSTANCE", "VALUE"), help="Invoke an instance with a given value, e.g. --invoke snapshot 2571559")
-    p_scenes.add_argument("--invoke-by-name", nargs=2, metavar=("INSTANCE", "NAME"), help='Invoke an instance by option name (partial, case-insensitive) e.g. --invoke-by-name snapshot "Warm Light"')
-    p_scenes.add_argument("--verbose", action="store_true", help="Show full parameters (long output)")
-    p_scenes.add_argument("--dynamic", action="store_true", help="Query the dynamic scenes endpoint (POST /device/scenes) for the device")
-    p_scenes.add_argument("--broadcast-by-name", nargs=2, metavar=("INSTANCE","NAME"), help="Find all entities that expose INSTANCE with option NAME (partial) and invoke in parallel")
-    p_scenes.add_argument("--broadcast-dynamic", nargs=1, metavar=("NAME"), help="Search dynamic scenes (POST /device/scenes) across all entities for NAME (partial) and invoke matches in parallel")
+    p_scenes = sub.add_parser(
+        "scenes", help="List or invoke device dynamic scenes (snapshots, diy)")
+    p_scenes.add_argument(
+        "device", nargs="?", help="Device or entity to inspect (optional with --all)")
+    p_scenes.add_argument("--all", action="store_true",
+                          help="List scenes for all known entities")
+    p_scenes.add_argument("--invoke", nargs=2, metavar=("INSTANCE", "VALUE"),
+                          help="Invoke an instance with a given value, e.g. --invoke snapshot 2571559")
+    p_scenes.add_argument("--invoke-by-name", nargs=2, metavar=("INSTANCE", "NAME"),
+                          help='Invoke an instance by option name (partial, case-insensitive) e.g. --invoke-by-name snapshot "Warm Light"')
+    p_scenes.add_argument("--verbose", action="store_true",
+                          help="Show full parameters (long output)")
+    p_scenes.add_argument("--dynamic", action="store_true",
+                          help="Query the dynamic scenes endpoint (POST /device/scenes) for the device")
+    p_scenes.add_argument(
+        "--instance", help="Only show a dynamic-scene instance, e.g. snapshot or diyScene")
+    p_scenes.add_argument("--broadcast-by-name", nargs=2, metavar=("INSTANCE", "NAME"),
+                          help="Find all entities that expose INSTANCE with option NAME (partial) and invoke in parallel")
+    p_scenes.add_argument("--broadcast-dynamic", nargs=1, metavar=("NAME"),
+                          help="Search dynamic scenes (POST /device/scenes) across all entities for NAME (partial) and invoke matches in parallel")
 
     return parser
 
@@ -130,7 +144,8 @@ def main() -> None:
         elif args.command == "inspect":
             # Detailed inspection: capabilities + optional raw state
             d = registry.resolve(args.device)
-            print(f"Device: {d.name} ({d.sku}) id={mask_device_id(d.device_id)}")
+            print(
+                f"Device: {d.name} ({d.sku}) id={mask_device_id(d.device_id)}")
             import json
             print("Capabilities:")
             for c in d.capabilities:
@@ -159,7 +174,8 @@ def main() -> None:
                                 for s in segs:
                                     print("  ", s)
                             else:
-                                print("\nNo explicit 'segments' list observed in state for segment_color_setting")
+                                print(
+                                    "\nNo explicit 'segments' list observed in state for segment_color_setting")
                     if not found:
                         print("\nNo segment_color_setting entry found in raw state.")
                 except Exception as exc:
@@ -245,7 +261,8 @@ def main() -> None:
                     try:
                         index_part, r_str, g_str, b_str = tok.split(":")
                     except ValueError:
-                        raise ValueError("each token must be INDEX:R:G:B or A-B:R:G:B")
+                        raise ValueError(
+                            "each token must be INDEX:R:G:B or A-B:R:G:B")
                     r, g, b = map(int, (r_str, g_str, b_str))
                     if not (0 <= r <= 255 and 0 <= g <= 255 and 0 <= b <= 255):
                         raise ValueError("RGB values must be 0..255")
@@ -275,7 +292,8 @@ def main() -> None:
                     try:
                         index_part, b_str = tok.split(":")
                     except ValueError:
-                        raise ValueError("each token must be INDEX:BRIGHT or A-B:BRIGHT")
+                        raise ValueError(
+                            "each token must be INDEX:BRIGHT or A-B:BRIGHT")
                     bright = int(b_str)
                     if not (0 <= bright <= 100):
                         raise ValueError("brightness must be 0..100")
@@ -292,7 +310,8 @@ def main() -> None:
                         "endIndex": end,
                         "brightness": bright,
                     })
-                _, latency, _ = controller.segment_brightness(args.device, segments)
+                _, latency, _ = controller.segment_brightness(
+                    args.device, segments)
             print(f"OK ({latency:.1f} ms)")
 
         elif args.command == "scene":
@@ -305,10 +324,13 @@ def main() -> None:
                 plan = controller.dry_run_scene(args.device, scene)
                 print("Planned control calls:")
                 for p in plan:
-                    supported = "(supported)" if p.get("supported") else "(unsupported)"
-                    print(f"  {p['cap']} -> {p['instance']} {supported}: {p['payload']}")
+                    supported = "(supported)" if p.get(
+                        "supported") else "(unsupported)"
+                    print(
+                        f"  {p['cap']} -> {p['instance']} {supported}: {p['payload']}")
             else:
-                results = controller.apply_scene(args.device, scene, use_diy_if_supported=args.use_diy)
+                results = controller.apply_scene(
+                    args.device, scene, use_diy_if_supported=args.use_diy)
                 # results are tuples from client.control: (data, latency_ms, status)
                 for res in results:
                     data, latency, status = res
@@ -349,9 +371,11 @@ def main() -> None:
                 else:
                     for item in summary:
                         if item['option_name']:
-                            print(f"{item['entity']:24} {item['instance']:12} - {item['option_name']} ({item['option_value']})")
+                            print(
+                                f"{item['entity']:24} {item['instance']:12} - {item['option_name']} ({item['option_value']})")
                         else:
-                            print(f"{item['entity']:24} {item['instance']:12} - (no options)")
+                            print(
+                                f"{item['entity']:24} {item['instance']:12} - (no options)")
                 # done
             elif args.broadcast_by_name:
                 instance, name = args.broadcast_by_name
@@ -368,15 +392,18 @@ def main() -> None:
                             if (opt.get('name') or '').casefold().find(q) != -1:
                                 targets.append((d, s['instance'], opt))
                 if not targets:
-                    print(f"No entities found exposing instance {instance!r} with option matching {name!r}.")
+                    print(
+                        f"No entities found exposing instance {instance!r} with option matching {name!r}.")
                     raise SystemExit(1)
 
                 # invoke in parallel
                 import concurrent.futures
+
                 def invoke_target(t):
                     d, inst, opt = t
                     try:
-                        data, latency, status = controller.activate_dynamic_scene(d.device_id, inst, opt.get('value'))
+                        data, latency, status = controller.activate_dynamic_scene(
+                            d.device_id, inst, opt.get('value'))
                         return (d.name, inst, opt.get('name'), status, latency, None)
                     except Exception as exc:
                         return (d.name, inst, opt.get('name'), None, None, str(exc))
@@ -391,9 +418,11 @@ def main() -> None:
                 for r in results:
                     name_ent, inst, opt_name, status, latency, err = r
                     if err:
-                        print(f"{name_ent:24} {inst:12} {opt_name!r:20} ERROR: {err}")
+                        print(
+                            f"{name_ent:24} {inst:12} {opt_name!r:20} ERROR: {err}")
                     else:
-                        print(f"{name_ent:24} {inst:12} {opt_name!r:20} HTTP {status} {latency:.1f} ms")
+                        print(
+                            f"{name_ent:24} {inst:12} {opt_name!r:20} HTTP {status} {latency:.1f} ms")
             elif args.broadcast_dynamic:
                 name = args.broadcast_dynamic[0]
                 devices = registry.refresh()
@@ -406,46 +435,58 @@ def main() -> None:
                             if (opt.get('name') or '').casefold().find(q) != -1:
                                 targets.append((d, s['instance'], opt))
                 if not targets:
-                    print(f"No entities found with dynamic scene option matching {name!r}.")
+                    print(
+                        f"No entities found with dynamic scene option matching {name!r}.")
                     raise SystemExit(1)
 
                 import concurrent.futures
+
                 def invoke_target_dynamic(t):
                     d, inst, opt = t
                     try:
                         # pass the value exactly as returned (may be dict)
-                        data, latency, status = controller.activate_dynamic_scene(d.device_id, inst, opt.get('value'))
+                        data, latency, status = controller.activate_dynamic_scene(
+                            d.device_id, inst, opt.get('value'))
                         return (d.name, inst, opt.get('name'), status, latency, None)
                     except Exception as exc:
                         return (d.name, inst, opt.get('name'), None, None, str(exc))
 
                 results = []
                 with concurrent.futures.ThreadPoolExecutor(max_workers=min(16, len(targets))) as ex:
-                    futures = [ex.submit(invoke_target_dynamic, t) for t in targets]
+                    futures = [ex.submit(invoke_target_dynamic, t)
+                               for t in targets]
                     for f in concurrent.futures.as_completed(futures):
                         results.append(f.result())
 
                 for r in results:
                     name_ent, inst, opt_name, status, latency, err = r
                     if err:
-                        print(f"{name_ent:24} {inst:12} {opt_name!r:20} ERROR: {err}")
+                        print(
+                            f"{name_ent:24} {inst:12} {opt_name!r:20} ERROR: {err}")
                     else:
-                        print(f"{name_ent:24} {inst:12} {opt_name!r:20} HTTP {status} {latency:.1f} ms")
+                        print(
+                            f"{name_ent:24} {inst:12} {opt_name!r:20} HTTP {status} {latency:.1f} ms")
             else:
                 if not args.device:
                     print("Provide a device name or use --all")
                     raise SystemExit(1)
                 # List dynamic_scene capabilities (static) or query dynamic scenes endpoint
-                if args.dynamic:
+                if args.instance == "diyScene":
+                    scenes = controller.get_diy_scenes(args.device)
+                elif args.dynamic:
                     scenes = controller.get_dynamic_scenes(args.device)
                 else:
                     scenes = controller.list_dynamic_scenes(args.device)
+                if args.instance:
+                    scenes = [s for s in scenes if s.get(
+                        "instance") == args.instance]
                 if args.invoke_by_name:
                     instance, name = args.invoke_by_name
                     # find the instance
                     matches = [s for s in scenes if s['instance'] == instance]
                     if not matches:
-                        print(f"No dynamic_scene instance named {instance!r} found. Available instances:")
+                        print(
+                            f"No dynamic_scene instance named {instance!r} found. Available instances:")
                         for s in scenes:
                             print(f"  - {s['instance']}")
                         raise SystemExit(1)
@@ -453,23 +494,31 @@ def main() -> None:
                     options = inst.get('options') or []
                     # case-insensitive partial match
                     q = name.casefold()
-                    found = [opt for opt in options if (opt.get('name') or '').casefold().find(q) != -1]
+                    found = [opt for opt in options if (
+                        opt.get('name') or '').casefold().find(q) != -1]
                     if not found:
-                        print(f"No option matching {name!r} for instance {instance!r}. Available options:")
+                        print(
+                            f"No option matching {name!r} for instance {instance!r}. Available options:")
                         for opt in options:
-                            print(f"  - name={opt.get('name')!r} value={opt.get('value')!r}")
+                            print(
+                                f"  - name={opt.get('name')!r} value={opt.get('value')!r}")
                         raise SystemExit(1)
                     if len(found) > 1:
-                        print(f"Multiple matches for {name!r} in {instance!r}:")
+                        print(
+                            f"Multiple matches for {name!r} in {instance!r}:")
                         for opt in found:
-                            print(f"  - name={opt.get('name')!r} value={opt.get('value')!r}")
-                        print("Be more specific or use --invoke with the numeric value.")
+                            print(
+                                f"  - name={opt.get('name')!r} value={opt.get('value')!r}")
+                        print(
+                            "Be more specific or use --invoke with the numeric value.")
                         raise SystemExit(1)
                     # single match
                     opt = found[0]
                     val = opt.get('value')
-                    data, latency, status = controller.activate_dynamic_scene(args.device, instance, val)
-                    print(f"Invoked {instance} -> {opt.get('name')!r} ({val}): HTTP {status} in {latency:.1f} ms")
+                    data, latency, status = controller.activate_dynamic_scene(
+                        args.device, instance, val)
+                    print(
+                        f"Invoked {instance} -> {opt.get('name')!r} ({val}): HTTP {status} in {latency:.1f} ms")
                 elif args.invoke:
                     instance, value = args.invoke
                     # try to parse integer value
@@ -477,8 +526,10 @@ def main() -> None:
                         val = int(value)
                     except Exception:
                         val = value
-                    data, latency, status = controller.activate_dynamic_scene(args.device, instance, val)
-                    print(f"Invoked {instance} -> {val}: HTTP {status} in {latency:.1f} ms")
+                    data, latency, status = controller.activate_dynamic_scene(
+                        args.device, instance, val)
+                    print(
+                        f"Invoked {instance} -> {val}: HTTP {status} in {latency:.1f} ms")
                 elif args.broadcast_by_name:
                     instance, name = args.broadcast_by_name
                     # find all entities that have this option name (partial match)
@@ -494,22 +545,26 @@ def main() -> None:
                                 if (opt.get('name') or '').casefold().find(q) != -1:
                                     targets.append((d, s['instance'], opt))
                     if not targets:
-                        print(f"No entities found exposing instance {instance!r} with option matching {name!r}.")
+                        print(
+                            f"No entities found exposing instance {instance!r} with option matching {name!r}.")
                         raise SystemExit(1)
 
                     # invoke in parallel
                     import concurrent.futures
+
                     def invoke_target(t):
                         d, inst, opt = t
                         try:
-                            data, latency, status = controller.activate_dynamic_scene(d.device_id, inst, opt.get('value'))
+                            data, latency, status = controller.activate_dynamic_scene(
+                                d.device_id, inst, opt.get('value'))
                             return (d.name, inst, opt.get('name'), status, latency, None)
                         except Exception as exc:
                             return (d.name, inst, opt.get('name'), None, None, str(exc))
 
                     results = []
                     with concurrent.futures.ThreadPoolExecutor(max_workers=min(16, len(targets))) as ex:
-                        futures = [ex.submit(invoke_target, t) for t in targets]
+                        futures = [ex.submit(invoke_target, t)
+                                   for t in targets]
                         for f in concurrent.futures.as_completed(futures):
                             results.append(f.result())
 
@@ -517,9 +572,11 @@ def main() -> None:
                     for r in results:
                         name_ent, inst, opt_name, status, latency, err = r
                         if err:
-                            print(f"{name_ent:24} {inst:12} {opt_name!r:20} ERROR: {err}")
+                            print(
+                                f"{name_ent:24} {inst:12} {opt_name!r:20} ERROR: {err}")
                         else:
-                            print(f"{name_ent:24} {inst:12} {opt_name!r:20} HTTP {status} {latency:.1f} ms")
+                            print(
+                                f"{name_ent:24} {inst:12} {opt_name!r:20} HTTP {status} {latency:.1f} ms")
                 else:
                     # concise by default; use --verbose for full parameters
                     import json
